@@ -14,6 +14,12 @@ Pre-requisite: Python 3.10
 2. Run the following command:
 ` $ python audiogram_processor.py `
 
-### Visualization using Tensorboard:
+### Visualization of model training using Tensorboard:
+
+At the begining of the terminal output there will be a line similar to the following: 
+ 
+ ` Tensorflow listening on http://localhost:6006/ `
+ 
+however your port number (6006 in this case) may vary. Copy this address to your browser to access the tensorboard.
 
 
