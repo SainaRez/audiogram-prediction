@@ -11,11 +11,11 @@ import matplotlib.pyplot as plt
 import itertools
 
 
-class Data:
-    '''
+'''
     The Data class is used to ingest the data in the CSV file and clean and split the data so it is
     easy to use in the machine learning pipeline.
-    '''
+'''
+class Data:
 
     def __init__(self, path: str):
         self._path = None
@@ -60,36 +60,43 @@ class Data:
     def val_outputs(self) -> np.ndarray:
         return self._val_outputs.copy()
 
+    # This is the main function that loads, cleans, and divides the data
     def process_data(self, path: str):
-        # This is the main function that loads, cleans, and divides the data
+        
         self.load_data(path)
         self.clean_data()
         self.divide_data()
 
-    def load_data(self, path:str):
-        # Load the data from the CSV into a dataframe where we can process the data
+    # Load the data from the CSV into a dataframe where we can process the data
+    def load_data(self, path: str, nrows = None):
+        
         self._path = path
-        self._data = pd.read_csv(path, nrows = 10000)
+        if nrows:
+            self._data = pd.read_csv(path, nrows = nrows)
+        else:
+            self._data = pd.read_csv(path)
 
+    # Cleans the data and replace non-integer values with NaNs
+    # This operation covers a couple of cases. In the data, there are two bad cases:
+        # 1. '**' for null inputs
+        # 2. Somewhere in the data there are strings
+    
     def clean_data(self):
-        # Clean the data which contains some null inputs
+    
         freqs = ['L500k', 'L1k', 'L2k', 'L3k', 'L4k', 'L6k', 'L8k', 'R500k', 'R1k', 'R2k', 'R3k', 'R4k', 'R6k', 'R8k']
         self._data = self._data[freqs]
 
-        # This operation covers a couple cases. In the data, there are two bad cases:
-        # 1. '**' for null inputs
-        # 2. Somewhere in the data there are strings.
-        # This step converts all data to numeric data type, and if not possible, replaces them with pd.Nan objects
+        
         self._data = self._data.apply(lambda x:pd.to_numeric(x, errors = 'coerce'))
 
         # Then we can drop all rows with NaNs
         self._data.dropna(inplace = True)
         self._data.reset_index(drop = False, inplace = True)
 
+    # Divide the data into inputs and outputs. The inputs are measured frequencies, and outputs are all other
+    # frequencies. We will treat left and right data as separate measurements / outputs. Then shuffle the data
+    # and split it into train/test/validation sets for use in training and testing.
     def divide_data(self):
-        # Divide the data into inputs and outputs. The inputs are measured frequencies, and outputs are all other
-        # frequencies. We will treat left and right data as separate measurements / outputs. Then shuffle the data
-        # and split it into train/test/validation sets for use in training and testing.
 
         # Get the input columns of the data
         left_inputs = self._data[['L2k', 'L4k', 'L6k']].to_numpy()
@@ -146,14 +153,15 @@ class Data:
         self._val_outputs = get_dict(self._val_outputs)
 
 
-class Model:
-    '''
+
+'''
     The Model class will hold 4 models, each parameterized to predict the unknown threshold volumes for 
     500k, 1k, 3k, and 8k, respectively.
 
     Each model will accept as input the measured volumes for the 2k, 4k, and 6k frequencies and predict
     a threshold volume for its designated frequency.
-    '''
+'''
+class Model:
 
     def __init__(self, n_samples):
         self.input_dim = n_samples
@@ -163,6 +171,7 @@ class Model:
         self.accuracies =  {}
         self.callbacks = self.create_call_backs()
 
+    # Create callbacks for tensorboard
     def create_call_backs(self):
         callbacks = [TensorBoard(log_dir = './logs/', histogram_freq = 1, 
         write_graph = True, write_images = True, 
@@ -170,16 +179,18 @@ class Model:
 
         return callbacks
     
+    # Create the one-hot vector
     def get_one_hot_vector(self, output_train):
-        # Create the one-hot vector
+        
         hotvector = np.zeros((len(output_train), 26))
         for i, value in enumerate(output_train):
             hotvector[i][value] = 1
 
         return hotvector
     
+    # Create the classification model that we will use to predict volumes for each output frequency
     def classification_model(self):
-        # Create the classification model that we will use to predict volumes for each output frequency
+        
         model = tf.keras.Sequential(name=str(random.randint(10000, 99999)))
         model.add(tf.keras.layers.Dense(156, input_dim = self.input_dim, activation = 'relu'))
         model.add(tf.keras.layers.Dense(78, input_dim = self.input_dim, activation = 'relu'))
@@ -188,19 +199,22 @@ class Model:
         model.summary()
         return model
 
+    # Train a model for a specific frequency
     def run_model(self, input_train, output_train, freq):
-        # Train a model for a specific frequency
+        
         hotvector_output_train = self.get_one_hot_vector(output_train)
-        self.models[freq].fit(input_train, hotvector_output_train, verbose = 1, epochs = 10, callbacks = self.callbacks)
+        self.models[freq].fit(input_train, hotvector_output_train, verbose = 1, epochs = 150, callbacks = self.callbacks)
 
+    # Evaluate the training of the model using the validation data
     def evaluate_model(self, input_val, output_val, freq):
-        # Evaluate the training of the model using the validation data
+        
         hotvector_output_val = self.get_one_hot_vector(output_val)
         val_loss, val_accuracy = self.models[freq].evaluate(input_val, hotvector_output_val, verbose = 2, callbacks = self.callbacks)
         
         print('Validation Accuracy: %.2f' % (val_accuracy * 100))
 
 
+    # Plots the confusion matrix for the data
     def plot_confusion_matrix(cm, target_names, title = 'Confusion matrix', 
         cmap = None, normalize = False):
 
@@ -253,8 +267,9 @@ class Model:
         return a
 
     
+    # Train the four models, one for each output frequency
     def run_model_for_all_freqs(self, input_train, input_test, input_val, output_train, output_test, output_val):
-        # Train the four models, one for each output frequency
+        
         for freq in output_train.keys():
             print('Training the model and predicting for ', freq)
 
@@ -266,8 +281,9 @@ class Model:
         print(self.accuracies)
 
 
+    # Predict the volumes for the four missing frequencies using the three measured frequencies
     def predict_volumes(self, vol2k, vol4k, vol6k):
-        # Predict the volumes for the four missing frequencies using the three measured frequencies
+        
         out_volumes =  {}
         for out_freq, model in self.models.items():
             vold_ind = np.argmax(model.predict(np.array([[vol2k, vol4k, vol6k]])))
@@ -294,7 +310,5 @@ if __name__ == '__main__':
     print('\n')
     print('Input volumes 25, 30, 55 decibels for 2k, 4k, 6k frequencies, respectively:')
     print("Predicted: ", m.predict_volumes(25,30,55), " decibels")
-
-    TensorBoard
 
 
