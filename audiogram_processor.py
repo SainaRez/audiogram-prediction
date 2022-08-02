@@ -254,9 +254,9 @@ class Model:
         plt.show()
 
 
-
+    # Test the model using the test datas
     def test_model(self, input_test, output_test, freq):
-        # Test the model using the test data
+        
         predicted_outputs = self.models[freq].predict(input_test, callbacks = self.callbacks)
 
         predictions = np.argmax(predicted_outputs, axis = 1)
@@ -278,7 +278,7 @@ class Model:
             acc = self.test_model(input_test, output_test[freq], freq)
             self.accuracies[freq] = acc
 
-        print(self.accuracies)
+        print('Test accuracies for frequency classes: ', self.accuracies)
 
 
     # Predict the volumes for the four missing frequencies using the three measured frequencies
